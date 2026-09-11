@@ -60,6 +60,12 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
           clickedPiece.type === 'chariot' &&
           canUseLaserBeam(pos, gameState.board)) {
         const newState = executeLaserBeam(pos, gameState);
+        
+        if (isKingInCheck(newState.board, gameState.currentPlayer)) {
+          sounds.playSelect();
+          return;
+        }
+        
         const updatedState = {
           ...newState,
           skillsUsed: {
@@ -284,21 +290,54 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
   };
 
   const checkGameEnd = (state: GameState) => {
-    const checkmate = isCheckmate(state.board, state.currentPlayer);
-    const stalemate = !hasLegalMoves(state.board, state.currentPlayer);
+    const redKing = findKingInState(state.board, 'red');
+    const blackKing = findKingInState(state.board, 'black');
+    
+    if (!redKing) {
+      setGameState(prev => ({
+        ...prev,
+        gameOver: true,
+        winner: 'black'
+      }));
+      setTimeout(() => sounds.playWin(), 300);
+      return;
+    }
+    
+    if (!blackKing) {
+      setGameState(prev => ({
+        ...prev,
+        gameOver: true,
+        winner: 'red'
+      }));
+      setTimeout(() => sounds.playWin(), 300);
+      return;
+    }
+    
+    const inCheckmate = isCheckmate(state.board, state.currentPlayer);
+    const noMoves = !hasLegalMoves(state.board, state.currentPlayer);
 
-    if (checkmate || stalemate) {
-      const winner = checkmate ? (state.currentPlayer === 'red' ? 'black' : 'red') : null;
+    if (inCheckmate || noMoves) {
+      const winner = state.currentPlayer === 'red' ? 'black' : 'red';
       setGameState(prev => ({
         ...prev,
         gameOver: true,
         winner
       }));
-      if (checkmate) {
-        setTimeout(() => sounds.playWin(), 300);
-      }
+      setTimeout(() => sounds.playWin(), 300);
     }
   };
+  
+  function findKingInState(board: (Piece | null)[][], player: Player): Position | null {
+    for (let row = 0; row < 10; row++) {
+      for (let col = 0; col < 9; col++) {
+        const piece = board[row][col];
+        if (piece && piece.type === 'king' && piece.player === player) {
+          return { row, col };
+        }
+      }
+    }
+    return null;
+  }
 
   const handleSkillActivate = (skill: SkillType) => {
     const currentSkill = gameState.selectedSkills[gameState.currentPlayer];
@@ -323,6 +362,12 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
     } else if (skill === 'resilience') {
       if (canUseResilience(gameState)) {
         const newState = executeResilience(gameState);
+        
+        if (isKingInCheck(newState.board, gameState.currentPlayer)) {
+          sounds.playSelect();
+          return;
+        }
+        
         const updatedState = {
           ...newState,
           skillsUsed: {
