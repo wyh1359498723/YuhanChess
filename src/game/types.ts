@@ -20,6 +20,7 @@ export interface GameState {
   gameOver: boolean;
   winner: Player | null;
   selectedSkills: SkillSelection;
+  skillsUsed: { red: boolean; black: boolean };
   lastMove: { from: Position; to: Position } | null;
   capturedPieces: {
     red: Piece[];
