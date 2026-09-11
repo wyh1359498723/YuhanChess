@@ -35,6 +35,7 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
     gameOver: false,
     winner: null,
     selectedSkills,
+    skillsUsed: { red: false, black: false },
     lastMove: null,
     capturedPieces: { red: [], black: [] },
     mergedCavalry: [],
@@ -59,10 +60,17 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
           clickedPiece.type === 'chariot' &&
           canUseLaserBeam(pos, gameState.board)) {
         const newState = executeLaserBeam(pos, gameState);
-        setGameState(newState);
+        const updatedState = {
+          ...newState,
+          skillsUsed: {
+            ...newState.skillsUsed,
+            [gameState.currentPlayer]: true
+          }
+        };
+        setGameState(updatedState);
         setSkillMode('none');
         sounds.playSkill();
-        checkGameEnd(newState);
+        checkGameEnd(updatedState);
       }
       return;
     }
@@ -73,10 +81,17 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
           clickedPiece.player === gameState.currentPlayer && 
           clickedPiece.type === 'advisor') {
         const newState = activateSacrifice(pos, gameState);
-        setGameState(newState);
+        const updatedState = {
+          ...newState,
+          skillsUsed: {
+            ...newState.skillsUsed,
+            [gameState.currentPlayer]: true
+          }
+        };
+        setGameState(updatedState);
         setSkillMode('none');
         sounds.playSkill();
-        checkGameEnd(newState);
+        checkGameEnd(updatedState);
       }
       return;
     }
@@ -163,6 +178,10 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
       newState.board = updatedBoard;
       newState.currentPlayer = gameState.currentPlayer === 'red' ? 'black' : 'red';
       newState.selectedPiece = null;
+      newState.skillsUsed = {
+        ...gameState.skillsUsed,
+        [gameState.currentPlayer]: true
+      };
       setGameState(newState);
       setSkillMode('none');
       sounds.playSkill();
@@ -225,6 +244,10 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
       // 吞噬效果
       if (skillMode === 'devour' && currentSkill === 'devour' && canUseDevour(from, to, gameState.board)) {
         newState = executeDevour(capturedPiece, { ...gameState, board: newBoard, capturedPieces: newCapturedPieces });
+        newState.skillsUsed = {
+          ...gameState.skillsUsed,
+          [gameState.currentPlayer]: true
+        };
         sounds.playSkill();
       }
     } else {
@@ -240,6 +263,10 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
     // 自焚效果
     if (skillMode === 'self_destruct' && currentSkill === 'self_destruct' && canUseSelfDestruct(from, to, gameState.board)) {
       newState = executeSelfDestruct(to, newState);
+      newState.skillsUsed = {
+        ...gameState.skillsUsed,
+        [gameState.currentPlayer]: true
+      };
       sounds.playSkill();
     }
 
@@ -276,6 +303,8 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
   const handleSkillActivate = (skill: SkillType) => {
     const currentSkill = gameState.selectedSkills[gameState.currentPlayer];
     if (skill !== currentSkill) return;
+    
+    if (gameState.skillsUsed[gameState.currentPlayer]) return;
 
     if (skill === 'laser_beam') {
       setSkillMode('laser_beam');
@@ -294,9 +323,16 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
     } else if (skill === 'resilience') {
       if (canUseResilience(gameState)) {
         const newState = executeResilience(gameState);
-        setGameState(newState);
+        const updatedState = {
+          ...newState,
+          skillsUsed: {
+            ...newState.skillsUsed,
+            [gameState.currentPlayer]: true
+          }
+        };
+        setGameState(updatedState);
         sounds.playSkill();
-        checkGameEnd(newState);
+        checkGameEnd(updatedState);
       }
     } else if (skill === 'devour') {
       setSkillMode('devour');
@@ -312,6 +348,7 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
       gameOver: false,
       winner: null,
       selectedSkills,
+      skillsUsed: { red: false, black: false },
       lastMove: null,
       capturedPieces: { red: [], black: [] },
       mergedCavalry: [],
@@ -328,6 +365,8 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
 
   const canUseCurrentSkill = () => {
     if (!currentSkill) return false;
+    if (gameState.skillsUsed[gameState.currentPlayer]) return false;
+    
     if (currentSkill === 'laser_beam') {
       return true;
     } else if (currentSkill === 'self_destruct') {
@@ -425,7 +464,8 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
               disabled={!canUseCurrentSkill()}
             >
               使用技能：{skill.name}
-              {skillMode === currentSkill && ' (已激活)'}
+              {gameState.skillsUsed[gameState.currentPlayer] && ' (已使用)'}
+              {!gameState.skillsUsed[gameState.currentPlayer] && skillMode === currentSkill && ' (已激活)'}
             </button>
             <p className="skill-hint">{getSkillHint()}</p>
           </>
@@ -456,45 +496,49 @@ export function GameUI({ selectedSkills, onBackToTitle }: GameUIProps) {
   );
 
   function getSkillHint(): string {
+    if (gameState.skillsUsed[gameState.currentPlayer]) {
+      return '你的技能已经使用过了,每局只能使用一次';
+    }
+    
     if (currentSkill === 'laser_beam') {
       if (skillMode === 'laser_beam') {
         return '请点击一辆己方车来发射激光波';
       }
-      return '点击按钮激活，然后选择一辆车发射激光波';
+      return '点击按钮激活,然后选择一辆车发射激光波';
     } else if (currentSkill === 'self_destruct') {
       if (!gameState.selectedPiece) {
-        return '先选择一个己方炮，然后激活技能进行自焚移动';
+        return '先选择一个己方炮,然后激活技能进行自焚移动';
       }
       if (skillMode === 'self_destruct') {
-        return '移动炮并吃子，将引发3×3自焚';
+        return '移动炮并吃子,将引发3×3自焚';
       }
-      return '点击按钮激活自焚模式，炮移动后将引发爆炸';
+      return '点击按钮激活自焚模式,炮移动后将引发爆炸';
     } else if (currentSkill === 'cavalry') {
       if (!gameState.selectedPiece) {
-        return '先选择一匹己方马，然后激活技能跳上己方兵';
+        return '先选择一匹己方马,然后激活技能跳上己方兵';
       }
       if (skillMode === 'cavalry') {
         return '选择一个己方兵的位置合体成骑兵';
       }
-      return '点击按钮激活，马跳上己方兵合体';
+      return '点击按钮激活,马跳上己方兵合体';
     } else if (currentSkill === 'sacrifice') {
       if (skillMode === 'sacrifice') {
         return '请点击一个己方士激活替死';
       }
-      return '点击按钮激活，选择一个士作为替死';
+      return '点击按钮激活,选择一个士作为替死';
     } else if (currentSkill === 'resilience') {
       if (!canUseResilience(gameState)) {
-        return '上回合没有己方象死亡，或已使用过';
+        return '上回合没有己方象死亡,或已使用过';
       }
       return '点击按钮复活上回合死亡的象';
     } else if (currentSkill === 'devour') {
       if (!gameState.selectedPiece) {
-        return '先选择一个己方兵，然后激活技能吃掉敌方非兵棋子';
+        return '先选择一个己方兵,然后激活技能吃掉敌方非兵棋子';
       }
       if (skillMode === 'devour') {
-        return '用兵吃掉一个敌方非兵棋子，获得其移动能力';
+        return '用兵吃掉一个敌方非兵棋子,获得其移动能力';
       }
-      return '点击按钮激活，兵吃掉敌方非兵棋子获得能力';
+      return '点击按钮激活,兵吃掉敌方非兵棋子获得能力';
     }
     return '';
   }
